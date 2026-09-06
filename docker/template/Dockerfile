@@ -1,10 +1,9 @@
 # ── eduadapt-pod-template: Ollama + qwen3.8:27b ─────────────────────────────
 # Generisches RunPod-Pod-Template. KEIN Eduadapt-Code.
-# Base-Tag im Docker Hub unter "runpod/base" vor dem Bau verifizieren.
-ARG BASE_IMAGE=runpod/base:0.4.0-cuda12.4.0-cudnn9-ubuntu22.04
+ARG BASE_IMAGE=runpod/base:1.1.0-cuda1290-ubuntu2404
 FROM ${BASE_IMAGE}
 
-ARG OLLAMA_VERSION=0.33.2
+ARG OLLAMA_VERSION=0.33.3
 ARG MODEL=qwen3.8:27b
 
 ENV OLLAMA_MODELS=/opt/ollama/models \
@@ -12,14 +11,14 @@ ENV OLLAMA_MODELS=/opt/ollama/models \
 
 # Layer: Tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        curl ca-certificates jq \
+        curl ca-certificates jq zstd \
     && rm -rf /var/lib/apt/lists/*
 
-# Layer: Ollama-Binary (deterministisch aus GitHub-Release)
-RUN curl -fsSL -o /tmp/ollama.tgz \
-        "https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/ollama-linux-amd64.tgz" \
-    && tar -C /usr/local -xzf /tmp/ollama.tgz \
-    && rm /tmp/ollama.tgz \
+# Layer: Ollama-Binary (deterministisch aus GitHub-Release, .tar.zst)
+RUN curl -fsSL -o /tmp/ollama.tar.zst \
+        "https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/ollama-linux-amd64.tar.zst" \
+    && tar --zstd -C /usr/local -xf /tmp/ollama.tar.zst \
+    && rm /tmp/ollama.tar.zst \
     && ollama --version
 
 # Layer: Modell einbacken (ollama pull braucht laufenden Server im Build)
