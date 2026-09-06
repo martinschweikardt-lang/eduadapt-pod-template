@@ -30,11 +30,18 @@ mkdir -p "$WS"/{eduadapt,data/db_backup,data/dossiers,data/chroma,logs,run,cache
 [ ! -e "$WS/cache/ollama" ]   && ln -s /opt/ollama/models "$WS/cache/ollama"
 
 # ── 2. Deploy-Key fuer privates Repo einrichten ─────────────────────────────
-# Key kommt als Env GITHUB_DEPLOY_KEY (RunPod-Template-Secret), NICHT im Image!
-if [ -n "${GITHUB_DEPLOY_KEY:-}" ]; then
+# Key kommt als Env GITHUB_DEPLOY_KEY (RunPod-Template-Secret) ODER liegt als
+# Datei ~/.ssh/eduadapt_deploy (per scp hinterlegt). NICHT im Image!
+if [ -n "${GITHUB_DEPLOY_KEY:-}" ] || [ -f ~/.ssh/eduadapt_deploy ]; then
   mkdir -p ~/.ssh && chmod 700 ~/.ssh
-  echo "$GITHUB_DEPLOY_KEY" > ~/.ssh/eduadapt_deploy
-  chmod 600 ~/.ssh/eduadapt_deploy
+  if [ -n "${GITHUB_DEPLOY_KEY:-}" ]; then
+    echo "$GITHUB_DEPLOY_KEY" > ~/.ssh/eduadapt_deploy
+    chmod 600 ~/.ssh/eduadapt_deploy
+    log "Deploy-Key aus Env eingerichtet (~/.ssh/eduadapt_deploy)"
+  else
+    chmod 600 ~/.ssh/eduadapt_deploy 2>/dev/null || true
+    log "Deploy-Key als Datei vorhanden (~/.ssh/eduadapt_deploy)"
+  fi
   cat > ~/.ssh/config <<'SSHEOF'
 Host github.com
   HostName github.com
@@ -43,9 +50,8 @@ Host github.com
   StrictHostKeyChecking accept-new
 SSHEOF
   chmod 600 ~/.ssh/config
-  log "Deploy-Key eingerichtet (~/.ssh/eduadapt_deploy)"
 else
-  warn "GITHUB_DEPLOY_KEY fehlt – Code-Pull wird fehlschlagen!"
+  warn "Kein Deploy-Key (Env GITHUB_DEPLOY_KEY oder ~/.ssh/eduadapt_deploy) – Code-Pull wird fehlschlagen!"
 fi
 
 # ── 3. Code frisch von GitHub ────────────────────────────────────────────────
@@ -78,6 +84,7 @@ if [ ! -f "$PROJECT/.env" ]; then
     cp "$PROJECT/.env.example" "$PROJECT/.env"
     # Docker-Container-Namen aus .env.example auf localhost umstellen
     sed -i 's|@db:|@localhost:|g; s|@redis:|@localhost:|g; s|@chromadb:|@localhost:|g' "$PROJECT/.env"
+    sed -i 's|^POSTGRES_HOST=.*|POSTGRES_HOST=localhost|; s|^REDIS_HOST=.*|REDIS_HOST=localhost|' "$PROJECT/.env"
     sed -i 's|^KEYCLOAK_URL=.*|KEYCLOAK_URL=http://localhost:9080|' "$PROJECT/.env"
     sed -i 's|^OLLAMA_HOST=.*|OLLAMA_HOST=http://localhost:11434|' "$PROJECT/.env"
     # Env-Uebersteuerung aus Template (nur gesetzte Variablen)
