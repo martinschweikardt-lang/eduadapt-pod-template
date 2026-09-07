@@ -88,10 +88,16 @@ if [ ! -f "$PROJECT/.env" ]; then
     sed -i 's|^KEYCLOAK_URL=.*|KEYCLOAK_URL=http://localhost:9080|' "$PROJECT/.env"
     sed -i 's|^OLLAMA_HOST=.*|OLLAMA_HOST=http://localhost:11434|' "$PROJECT/.env"
     # Env-Uebersteuerung aus Template (nur gesetzte Variablen)
+    # WICHTIG: sed ersetzt nur existierende Zeilen; fehlende Keys (z. B.
+    # OLLAMA_MODEL, das .env.example nicht enthaelt) werden ANGEHAENGT.
     for key in POSTGRES_PASSWORD SECRET_KEY KEYCLOAK_CLIENT_SECRET \
                POSTGRES_DB POSTGRES_USER OLLAMA_MODEL; do
       if [ -n "${!key:-}" ]; then
-        sed -i "s|^${key}=.*|${key}=${!key}|" "$PROJECT/.env"
+        if grep -q "^${key}=" "$PROJECT/.env"; then
+          sed -i "s|^${key}=.*|${key}=${!key}|" "$PROJECT/.env"
+        else
+          echo "${key}=${!key}" >> "$PROJECT/.env"
+        fi
         log "  .env: ${key} aus Template-Env gesetzt"
       fi
     done
